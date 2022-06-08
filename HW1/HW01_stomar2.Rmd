@@ -1,0 +1,156 @@
+---
+title: "STAT 432 Homework-1"
+author: "Sharvi Tomar (stomar2)"
+date: 27/08/21
+output:
+  pdf_document: 
+   latex_engine: xelatex
+   toc: yes
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Question 1 (random number generation and basic statistics)
+
+X1, X2, …, Xn are i.i.d. $\mathcal{N}$($\mu$,$\sigma^{2}$) random variables, where $\mu$=3 and $\sigma$=2.
+
+a. Generate a set of `n=100` observations from this distribution. Only display the first 10 observations in your R output. Make sure that you set seed properly in order to replicate the result.
+
+b. What is the statistical formula of the sample mean and sample variance (unbiased estimation)? Type the answer using latex.
+
+c. Calculate the above quantities (in b and c) using R functions. You need to use your own code to calculate these quantities and then match the results with default R functions.
+
+d. Write a new function called mysummarystat that takes the data vector as the input, and output an vector of two elements: the sample mean and variance. Call the function using your data to validate.
+
+### Answer:
+
+```{r}
+  # Generating normally distributed random variable
+  set.seed(1)
+  x=rnorm(100, mean=3, sd=2)
+  x[1:10]
+```
+
+Sample mean 
+$\overline{x}$ =  $$\frac{\sum_{i=1}^{n} x_{i}^2}{n}$$
+
+Sample variance $s^{2}$ = $$\frac{\sum_{i=1}^{n} (x_{i}-\overline{x})^2}{(n-1)}$$
+
+```{r}
+# Function to calculate sample mean
+mymean <- function(y)
+  {
+    s = 0
+    for(el in y)
+      s = s + el
+    return(s = s / length(y))
+  }
+```
+
+```{r}
+# Function to calculate sample variance
+myvar <- function (y)
+ {
+    v = 0
+    m = mymean(y)
+    for(el in y)
+      v = v + ((el - m)^2)
+    return(v = v / (length(y)-1))  
+}
+```
+
+```{r}
+# Difference of calculated mean with R mean
+mymean(x)-mean(x) 
+# Difference of calculated variance with R variance
+myvar(x)-var(x)
+```
+
+```{r}
+# Defining 'mysummarystat' function
+mysummarystat<-function(y){
+  return(c(mean(y),var(y)))
+}
+
+# Calling 'mysummarystat' function using x (normally distributed random variable)
+mysummarystat(x)
+```
+
+## Question 2 (data manipulation, plots and linear model)
+
+Perform the following tasks on the iris dataset. For each question, output necessary information to check that your completed the required operation.
+
+a. Change the class labels of the Species variable from virginica, versicolor, and setosa to Species_1, Species_2 and Species_3, respectively.
+
+b. Change the variable name from Species to Type. Note that for both questions a) and b), you need to change the original variable, not creating a new variable and replacing the old one.
+
+c. Create a boxplot for the variable Petal.Length that shows different boxes for different levels of Type. Adjust chunk options so that the plot is at the center and occupies 60% of the page width.
+
+d. Use a linear model to estimate Petal.Length using all other four covariates. Make sure that the Type variable is specified as a factor. Report the coefficients and the most significant variable. To obtain the most significant variable, you must extract the p-value from the fitted object, instead of reading the value from the R output on your screen. If you do not know how to extract the p-value, use google to search for an answer with relevant keywords. Cite your reference by providing a link to it.
+
+e. Save the iris data into a .csv file, and then read the data from that file back into R. Make sure that the values in this new data is the same to the original one.
+
+### Answer:
+
+```{r}
+# Changing the class labels of the Species variable
+levels(iris$Species) <- list(Species_1  = "virginica", Species_2 = "versicolor", Species_3 = "setosa")
+```
+
+```{r}
+# Changing the variable name from Species to Type
+colnames(iris)[5]<-"Type"
+```
+
+```{r, fig.align='center', out.width="60%"}
+# Creating a boxplot for the variable Petal.Length for different levels of Type
+boxplot(Petal.Length~Type,data=iris, main="Iris Data",
+        xlab="Number of Species", ylab="Petal Length")
+```
+```{r}
+# Checking data type of Type variable 
+str(iris$Type)
+```
+
+```{r}
+# Creating a linear model to estimate Petal.Length using all other four covariates.
+model= lm(Petal.Length~Sepal.Length+Sepal.Width+Petal.Width+Type, data = iris)
+```
+
+```{r}
+# Reporting coefficients
+model$coefficients                      
+```
+
+```{r}
+# Generating linear model summary to see statistically significant variables
+summary(model)
+```
+
+The statistically significant variables (with highest significance codes) as per the model are:
+
+"Sepal.Length","Petal.Width","TypeSpecies_2","TypeSpecies_3".
+
+```{r}
+# Reporting p-values of variates
+summary(model)$coefficients[,4]            
+```
+
+```{r}
+# Variable with smallest p-value
+pvals=summary(model)$coefficients[,4]   
+print(min(pvals))
+```
+
+The most significant variable is the one with the smallest p-value which is "Sepal.Length".
+
+```{r}
+# Saving the iris data into a .csv file
+write.csv(iris, file = "mydata.csv")
+# Reading the data from that file back into R
+data=read.csv("mydata.csv",stringsAsFactors=TRUE)
+# Checking values in new data same as the original one
+head(data)
+```

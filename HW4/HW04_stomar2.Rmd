@@ -1,0 +1,241 @@
+---
+title: "Stat 432 Homework 4"
+author: "Sharvi Tomar (stomar2)"
+date: 30/08/21
+output:
+  pdf_document: 
+   latex_engine: xelatex
+   toc: yes
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{css, echo=FALSE}
+.solution {
+background-color: #CCDDFF;
+}
+```
+
+
+## Question 1: The Bias-Variance Trade-Off Simulation
+
+Let us further extend the bias-variance trade-off simulation study in the lecture note to complete our analysis. For the original simulation study, please read the two examples in the "Bias and Variance of Ridge Regression" section to grasp the idea. And we are going to extend the ridge regression bias-variance example. For this question, you can use the same code already presented in the lecture notes, and you can remove the OLS part (anything associated with `allolsbeta`). You can keep most settings the same as the original code, but some modifications need to be done to complete this question. 
+
+  * Change the covariance between $X_1$ and $X_2$ to 0.9.
+  * Instead of recording all $\widehat{\boldsymbol \beta}$ values, we will only focus on the first parameter $\widehat{\beta}_1$, with true value 1. Note that we do not have the intercept term here. Out of the 1000 simulations, you will obtain 1000 of such estimated values. Compare the average of these estimations with the truth would allow us to calculate the Bias. And you can also obtain the variance of them. Make sure that you use your UIN as the random seed. 
+ 
+```{r}
+library(MASS)
+set.seed(667346304)
+nsim = 1000
+n = 100
+lambda = 0.3
+
+# save all estimated variance in a vector
+allridgebeta = matrix(NA, nsim, 1)
+
+for (i in 1:nsim)
+{
+  # Setting the covariance between X_1 and X_2 to 0.9
+  X = mvrnorm(n, c(0, 0), matrix(c(1, 0.9, 0.9, 1), 2, 2))
+  y = rnorm(n, mean = X[, 1] + X[, 2])
+  
+  # Saving the first parameter beta1
+  betas=solve(t(X) %*% X + lambda * n * diag(2)) %*% t(X) %*% y
+  allridgebeta[i] = betas[1]
+}
+
+# For 1000 simulations, we obtain 1000 beta1 estimated values
+dim(allridgebeta)
+
+# Mean of beta1 estimates
+colMeans(allridgebeta)
+
+# Comparing mean of beta1 estimates with truth value=1 - calculating the Bias
+colMeans(allridgebeta)-1
+
+# Variance of beta1 estimates
+apply(allridgebeta, 2, var)
+```
+
+  * You also need to perform the above task for many lambda values. Hence, you would need to write a "double-loop" with the outside loop going through all $\lambda$ values and the inside-loop being what you have done in the previous step. For the choice of $\lambda$ values, consider a grid of 100 values from 0 to 0.5. Hence, at the end of this simulation, you should have a vector of 100 bias values and 100 variance values.
+
+```{r}
+# Setting seed to UIN
+set.seed(667346304)
+nsim = 1000
+n = 100
+lambda_grid = seq(0, 0.5, length.out = 100)
+
+# save estimated variance for first parameter in a vector
+allridgebeta = matrix(NA, nsim, 100)
+
+for (index in 1:length(lambda_grid)) {
+  for (i in 1:nsim)
+  {
+    # create highly correlated variables and a linear model
+    # Setting the covariance between X1 and X2 to 0.9.
+    X = mvrnorm(n, c(0, 0), matrix(c(1, 0.9, 0.9, 1), 2, 2))
+    y = rnorm(n, mean = X[, 1] + X[, 2])
+    
+    # Saving the first parameter beta1 at each nsim
+    betas = solve(t(X) %*% X + lambda_grid[index] *
+                    n * diag(2)) %*% t(X) %*% y
+    allridgebeta[i, index] = betas[1]
+  }
+}
+# Mean of beta1 estimates
+colMeans(allridgebeta)
+
+# Bias of beta1 estimates
+bias_values=colMeans(allridgebeta)-1
+
+# Variance of beta1 estimates
+variance_values = apply(allridgebeta, 2, var)
+variance_values
+
+# Length of bias_values vector
+length(bias_values)
+# Length of variance_values vector
+length(variance_values)
+```
+
+   * Make a plot of three quantities over each of your $\lambda$ values: Bias$^2$, Variance, and Bias$^2$ $+$ Variance. Hence there should be three curves over the range of lambda from 0 to 0.5. My curve looks like the following, but yours may differ based on your specific setup and the random seed.
+ 
+```{r}
+bias_square=bias_values^2
+bias_square_plus_variance=(bias_values^2)+variance_values
+df=data.frame(lambda_grid,bias_square,variance_values,bias_square_plus_variance)
+library(ggplot2)
+ggplot(df, aes(x=lambda_grid)) + 
+  geom_line(aes(y = bias_square, color= "bias_square")) + 
+  geom_line(aes(y = variance_values, color= "variance_values")) +
+  geom_line(aes(y = bias_square_plus_variance,color= "bias_square_plus_variance"))
+```
+
+   * Lastly, what have you observed in terms of the trend for Bias$^2$, Variance, and their sum, respectively? What is causing these? And if you are asked to choose a $\lambda$ value that works the best, which value would you choose? 
+
+   With increase in value of lambda, the variance(in blue) decreases however, the square of the bias/absolute value of bias(in red) increases. Since we aim to ultimately reduce prediction error which is the sum of (Bias2+Variance) and a term called irreducible error, we focus to reduce the (Bias2+Variance). Hence, the lambda value I will choose would be the one that minimizes (Bias2+Variance).
+   
+```{r}
+# Value of lambda where bias_square_plus_variance is minimum
+lambda_grid[which.min(bias_square_plus_variance)]
+```
+
+Lambda=0.126262 works the best.
+
+## Question 2: The Cross-Validation 
+
+We used the `mtcars` data in the lecture notes, and also introduced the $k$-fold cross-validation. For this question you need to complete the following:
+
+  * Write a $5$-fold cross-validation code by yourself, using the `lm.ridge()` function to fit the model and predict on the testing data. Choose an appropriate range of lambda values based on how this function specifies the penalty. Obtain the cross-validation error corresponding to each $\lambda$ and produce an intuitive plot to how it changes over different $\lambda$. What is the best penalty level you obtained from this procedure? Compare that with the GCV result. Please note that you should clearly state the intention of each step of your code and state your result. For details regrading writing a report, please watch the `Comment Video on HW` from week 1 webpage, or the discussion broad.
+
+```{r}
+
+# 5-fold cross-validation code using lm.ridge()
+
+library(MASS)
+testing_error = matrix(NA, 100, 5)
+avg_testing_error = rep(NA, 100)
+lambda_seq = seq(1, 100, length.out = 100)
+
+# Making folds of 7,6,6,6,7
+folds <- cut(seq(1,nrow(mtcars)),breaks=5,labels=FALSE)
+
+for (k in 1:5) {
+  testIndexes <- which(folds==k,arr.ind=TRUE)
+  #print(testIndexes)
+  test <- mtcars[testIndexes, ]
+  train <- mtcars[-testIndexes, ]
+  
+  fit1 = lm.ridge(mpg ~ .,
+                  data = train,
+                  lambda = seq(1, 100, length.out = 100))
+
+  ## add intercept column, remove mpg column
+  test_data = cbind(1, test)
+  test_data = test_data[-c(2)]
+  
+  for (i in 1:100) {
+    # predict on the testing data
+    y_pred = data.matrix(test_data) %*% coef(fit1)[i,]
+    # For each k, obtaining the testing error
+    testing_error[i, k] = mean((y_pred - test$mpg) ^ 2) 
+  }
+}
+```
+
+```{r}
+# Average all K testing errors
+avg_testing_error = apply(testing_error, 1, mean)
+```
+
+```{r}
+# Plot to show how cross-validation error changes over different lambda
+plot(
+  lambda_seq,
+  avg_testing_error,
+  type = "l",
+  col = "darkorange",
+  ylab = "CV Error",
+  xlab = "Lambda",
+  lwd = 3
+)
+title("mtcars Data: K-fold CV")
+```
+
+# What is the best penalty level you obtained from this
+
+```{r}
+lambda_seq[which.min(avg_testing_error)]
+```
+The best penalty level obtained using the 5-fold cross-validation code above is 15.
+
+```{r}
+ fit_gcv = lm.ridge(mpg ~., data = mtcars, lambda = seq(1, 100, length.out=100))
+```
+
+```{r}
+# Comparing that with the GCV result
+ plot(fit_gcv$lambda[1:100], fit_gcv$GCV[1:100], type = "l", col = "darkorange", 
+         ylab = "GCV", xlab = "Lambda", lwd = 3)
+    title("mtcars Data: GCV")
+```
+```{r}
+fit_gcv$lambda[which.min(fit_gcv$GCV)] 
+```
+
+The lambda value obtained from GCV approach is 15.
+
+
+  * Use the `cv.glmnet()` function from the `glmnet` package to perform a $5$-fold cross-validation using their built-in feature. Produce the cross-validation error plot against $\lambda$ values. Report the `lambda.min` and `lambda.1se` selected $\lambda$ value. 
+
+```{r}
+# Use cv.glmnet() from the glmnet package to perform a 5-fold cross-validation
+library(glmnet)
+set.seed(667346304)
+fit2 = cv.glmnet(
+  x = data.matrix(mtcars[,-1]),
+  y = mtcars$mpg,
+  nfolds = 5,
+  alpha = 0
+)
+
+# Plotting cross-validation error against λ values
+plot(fit2)
+```
+
+
+```{r}
+# lambda.min value
+fit2$lambda.min
+
+# lambda.1se value
+fit2$lambda.1se
+```
+
+
+      

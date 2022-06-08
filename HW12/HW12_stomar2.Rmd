@@ -1,0 +1,310 @@
+---
+title: "Stat 432 Homework 12"
+author: Sharvi Tomar
+date: "Assigned: Nov 15, 2021; <span style='color:red'>Due: 11:59 PM CT, Nov 30, 2021</span>"
+output:
+  pdf_document:
+    toc: yes
+    toc_depth: 2
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{css, echo=FALSE}
+.solution {
+background-color: #CCDDFF;
+}
+```
+
+\def\bx{\mathbf{x}}
+
+## Question 1: K-Means
+
+In our lecture, there is an example of clustering pixels in an image. For this question, we will replicate that procedure with your favorite image. To complete this question, perform the following steps:
+
+  * [10 Points] Pick your favorite image for this question. Plot the original image. Note that for computational concern, you probably want to avoid an extremely large image file.
+  
+```{r}
+library(jpeg)
+img<-readJPEG("hund2.jpg")
+
+par(mar = rep(0.2, 4))
+plot(
+  c(0, 400),
+  c(0, 500),
+  xaxt = 'n',
+  yaxt = 'n',
+  bty = 'n',
+  pch = '',
+  ylab = '',
+  xlab = ''
+)
+
+rasterImage(img, 0, 0, 400, 500)
+```
+  
+  * [10 Points] Report the following information of your data:
+    + Dimension of the original image
+    
+```{r}
+# Dimension of the original image
+print("The dimension of original image is:")
+dim(img)
+```
+
+   + Dimension of the data once you transform the image to a version that you could apply k-means
+   
+```{r}
+# Applying vectorization to each layer (r/g/b) of the image
+img_expand = apply(img, 3, c)
+
+# Dimension of data to apply k-means
+print("The dimension of data to apply k-means is:")
+dim(img_expand)
+```
+
+  + Total variations of your data
+
+```{r}
+# Total variations of data
+variation=sum(dist(img_expand)^2)/nrow(img_expand)
+print("The Total variations of data is:")
+variation
+```
+    
+  * [25 Points] Apply $k$-means to your data. Choose three unique $k$ values to report the following result:
+  
+   + What is the within-cluster variance?
+   + What are the cluster means?
+   + Plot the image with each pixel replaced by its corresponding cluster mean
+
+The 3 values of k chosen for K-means clustering are 2,5 and 15.
+
+```{r}
+library(usefun)
+# Function to perform K-means, report within-cluster variance, cluster means, 
+# plot image with pixel replaced by its corresponding cluster mean
+
+pixals.clustered <- function(img, k)
+{
+  img_expand = apply(img, 3, c)
+  kmeanfit <- kmeans(img_expand, k)
+  
+  within_cluster_variance=kmeanfit$withinss/kmeanfit$size
+  
+  print(paste(c("Within-cluster variance for k=", k)))
+  print(paste(c(kmeanfit$withinss)))
+  print_empty_line()
+  print(paste(c("Cluster means for k=",k)))
+  print(paste(c(kmeanfit$centers)))
+  
+  new_img_expand = kmeanfit$centers[kmeanfit$cluster,]
+  
+  new_img = img
+  for (j in 1:3)
+    new_img[, , j] = matrix(new_img_expand[, j], dim(img)[1], dim(img)[2])
+  
+  return(new_img)
+}
+```
+
+```{r}
+  par(mfrow=c(1,4))
+  par(mar=rep(0.2, 4))
+  plot(c(0, 400), c(0, 540), xaxt = 'n', yaxt = 'n', bty = 'n', 
+       pch = '', ylab = '', xlab = '')
+  rasterImage(img, 0, 0, 400, 500)
+  text(200, 530, "Original", col = "deepskyblue", cex = 3)
+  
+  for (k in c(2, 5, 15))
+  {
+      par(mar=rep(0.2, 4))
+      plot(c(0, 400), c(0, 540), xaxt = 'n', yaxt = 'n', bty = 'n', 
+           pch = '', ylab = '', xlab = '')
+      rasterImage(pixals.clustered(img, k), 0, 0, 400, 500)
+      text(200, 530, paste("k =", k), col = "deepskyblue", cex = 3)
+  }
+```
+
+## Question 2: Hierarchical Clustering
+
+The same type of image compression approach can be done using hierarchical clustering. Using the data that you prepared for the $k$-means algorithm, to perform hierarchical clustering. However, instead of using the euclidean distance with `dist()` function, you need to provide the clustering algorithm a different distance matrix $D_{n \times n}$. The $(i, j)$th element in this matrix represents the distance between observations $i$ and $j$, defined as 
+
+$$d(\bx_i, \bx_k) = \lVert\bx_i - \bx_j \rVert_1$$
+To be able to use this matrix in the `hclust()` function, you need to convert the matrix into a dist object, using the `as.dist()` function. For more details, read the documentation [here](https://www.rdocumentation.org/packages/stats/versions/3.6.2/topics/dist). 
+```{r}
+dist_matrix=dist(img_expand, method = "manhattan")
+```
+
+Once you have all the component to perform the hierarchical clustering, do the following:
+
+  * [15 Points] Try both complete, single and average linkage. Provide a plot of the dendrogram for both methods.
+  
+```{r}
+hc_comp = hclust(dist_matrix, method = "complete")
+hc_sing = hclust(dist_matrix, method = "single")
+hc_avg = hclust(dist_matrix, method = "average")
+```
+
+```{r}
+# Dendrogram for hierarchical clustering using complete method
+plot(hc_comp)
+```
+  
+```{r}
+# Dendrogram for hierarchical clustering using average method
+plot(hc_avg)
+```
+  
+```{r}
+# Dendrogram for hierarchical clustering using single method
+plot(hc_sing)
+```
+  
+  * [10 Points] Based on what you have, pick one final clustering result. You need to explain the rational for your choice.
+  
+Since this is an image compression exercise we are so the choice of clustering result is based on which clustering result produces a better image in terms of image quality.
+
+1) Selecting the number of clusters (tricky problem)
+
+There are many different approaches depending upon the problem at hand. One could select the optimal number of clusters by:
+
+Picking a cutoff where the height of the next split is short. The height of each split represents how separated the two subsets are (the distance when they are merged). 
+
+Equivalently, how much can the depth cut-off line slide without vertically without touching the dendrogram's horizontal lines. 
+
+2) Selecting the best linkage method
+
+Eliminating 'single' linkage result as it the dengrogram does not provide any clear information.
+
+Choosing the dendogram that shows "nice" clustering then we may prefer to use that linkage. "nice" clustering-gives number of clusters that are consistent with the truth. 
+
+```{r}
+sort(hc_comp$height,decreasing = TRUE)[1:5]
+dend <- as.dendrogram(hc_comp)
+depth.cutoff <- 2.3
+plot(dend)
+abline(h=depth.cutoff,col="red",lty=2)
+```
+
+From the dendrogram of 'complete' linkage method, we can derive that k=2 or 2 clusters is a good choice. On increasing the value of k the separability between clusters reduces drastically.No other depth cut-off line proves suitable.  However, for the flower image, k=2 doesn't seem a reasonable choice as the picture contains several colors such as pink, green, yellow, white and other shades. So reducing it a 2-shade picture would not be a great choice.
+  
+```{r}
+sort(hc_avg$height,decreasing = TRUE)[1:5]
+dend <- as.dendrogram(hc_avg)
+depth.cutoff <- 0.68
+plot(dend)
+abline(h=depth.cutoff,col="red",lty=2)
+```
+
+From the dendrogram of 'complete' linkage method, we can derive k=3 and k=6  seems a good choice for the number of clusters as there is reasonable separability between clusters. It also seems like a suitable like for our image of flower. Checking the final image constructed using these k values to decide the final cluster setting.
+
+```{r}
+subfinal_hc <- cutree(hc_avg, k = 3)
+final_hc <- cutree(hc_avg, k = 6)
+```
+  
+```{r}
+par(mrow=c(1,2))
+
+########## subfinal_hc: k=3, 'average' linkage ###########
+# Calculating the cluster centers
+cluster_center1 = aggregate(img_expand,list(cluster=subfinal_hc),mean)
+cluster_center1 = cluster_center1[,2:4]
+# Replace pixels with their corresponding cluster mean
+new_img_expand1 = cluster_center1[subfinal_hc,]
+# Converting back to the array that can be plotted as an image
+new_img1 = img
+new_img1[, , 1] = matrix(new_img_expand1[, 1], 100, 100)
+new_img1[, , 2] = matrix(new_img_expand1[, 2], 100, 100)
+new_img1[, , 3] = matrix(new_img_expand1[, 3], 100, 100)
+
+
+########## subfinal_hc: k=6, 'average' linkage ###########
+# Calculating the cluster centers
+cluster_center = aggregate(img_expand,list(cluster=final_hc),mean)
+cluster_center = cluster_center[,2:4]
+# Replace pixels with their corresponding cluster mean
+new_img_expand = cluster_center[final_hc,]
+# Converting back to the array that can be plotted as an image
+new_img = img
+new_img[, , 1] = matrix(new_img_expand[, 1], 100, 100)
+new_img[, , 2] = matrix(new_img_expand[, 2], 100, 100)
+new_img[, , 3] = matrix(new_img_expand[, 3], 100, 100)
+
+par(mfrow=c(1,2))
+# plot the new image
+plot(
+  c(0, 100),
+  c(0, 100),
+  xaxt = 'n',
+  yaxt = 'n',
+  bty = 'n',
+  pch = '',
+  ylab = '',
+  xlab = ''
+)
+rasterImage(new_img1, 0, 0, 100, 100)
+
+# plot the new image
+plot(
+  c(0, 100),
+  c(0, 100),
+  xaxt = 'n',
+  yaxt = 'n',
+  bty = 'n',
+  pch = '',
+  ylab = '',
+  xlab = ''
+)
+rasterImage(new_img, 0, 0, 100, 100)
+```
+
+k=6 gives a much better picture hence, it seems a more suitable choice. 
+
+  Hence, we the final clustering choice:
+- Hierarchical Clustering method - "average"
+- Number of clusters - 6
+  
+  * [10 Points] Based on your final choice, calculate the cluster centers using the mean of all pixels in the cluster. Then replace all pixels in each cluster with their corresponding cluster mean. This step is similar to the k-means question.
+  
+```{r}
+# Calculating the cluster centers
+cluster_center = aggregate(img_expand,list(cluster=final_hc),mean)
+cluster_center = cluster_center[,2:4]
+cluster_center
+```
+
+```{r}
+# Replace pixels with their corresponding cluster mean
+new_img_expand = cluster_center[final_hc,]
+
+# Converting back to the array that can be plotted as an image
+new_img = img
+new_img[, , 1] = matrix(new_img_expand[, 1], 100, 100)
+new_img[, , 2] = matrix(new_img_expand[, 2], 100, 100)
+new_img[, , 3] = matrix(new_img_expand[, 3], 100, 100)
+```
+  
+  * [10 Points] Plot this new image. 
+  
+```{r}
+# plot the new image
+plot(
+  c(0, 100),
+  c(0, 100),
+  xaxt = 'n',
+  yaxt = 'n',
+  bty = 'n',
+  pch = '',
+  ylab = '',
+  xlab = ''
+)
+rasterImage(new_img, 0, 0, 100, 100)
+```
+
+
+

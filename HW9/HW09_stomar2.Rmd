@@ -1,0 +1,283 @@
+---
+title: "Stat 432 Homework 9"
+author: "Sharvi Tomar (stomar2)"
+date: "Assigned: Oct 25, 2021; <span style='color:red'>Due: 11:59 PM CT, Nov 2, 2021</span>"
+output:
+  pdf_document: 
+   latex_engine: xelatex
+   toc: yes
+---
+
+<style>
+body {
+text-align: justify}
+</style>
+
+```{css, echo=FALSE}
+.solution {
+background-color: #CCDDFF;
+}
+```
+
+## Question 1: LDA
+
+Let's start with estimating some components in the LDA. First, by the lecture notes, we know that and LDA is to compare the log of densities and the prior probabilities, i.e., for each target point $x_0$, we want to find the class label $k$ that has the largest value of 
+
+$$x_0^T \Sigma^{-1} \mu_k - \frac{1}{2} \mu_k^T \Sigma^{-1} \mu_k + \log(\pi_k)$$
+Let's use the `SAheart` data from the `ElemStatLearn` package to perform this calculation. In this data, there are two classes, defined by the `chd` (chronic heart disease) variable. And there are 9 variables. We will treat them all as numerical variables, hence the following $X$ and $y$ are used:
+
+```{r}
+library(ElemStatLearn)
+X = data.matrix(SAheart[, -10])
+y = SAheart$chd
+```
+
+Hence, the problem is essentially estimating the quantities:
+
+  * [5 Points] Prior probabilities $\pi_k$
+  
+```{r}
+# Prior probabilities
+pi_0 = length(y[y == "0"]) / length(y)
+pi_1 = length(y[y == "1"]) / length(y)
+
+pi_0
+pi_1
+```
+
+The prior probabilities are 0.6536797 (y=0 or class 0) and 0.3463203 (y=1 or class 1).
+  
+  * [10 Points] Mean vectors (centroid) for each class: $\mu_k$  
+  
+```{r}
+# Forming a data frame from X and y
+SAheart_final = data.frame(X, y)
+
+# Subsetting the dataframe to have observations belonging to class=0
+class_0 = SAheart_final[(SAheart_final$y == "0"),]
+# Mean vector for class-0
+m0 = apply(class_0[, 1:9], 2, mean)
+
+# Subsetting the dataframe to have observations belonging to class=1
+class_1 = SAheart_final[(SAheart_final$y == "1"),]
+# Mean vector for class-1
+m1 = apply(class_1[, 1:9], 2, mean)
+```
+
+```{r}
+# Mean vector for class-0
+m0
+```
+
+The above is the mean vector of class=0.
+
+```{r}
+# Mean vector for class-1
+m1
+```
+
+The above is the mean vector of class=1.
+  
+  * [20 Points] Pooled covariance matrix $\Sigma$ 
+
+```{r}
+
+# Centering the data belonging to class=0
+class_0_centred = data.frame(matrix(NA, nrow = 302, ncol = 9))
+for (i in 1:9) {
+  class_0_centred[, i] = class_0[, i] - m0[i]
+}
+
+# Centering the data belonging to class=1
+class_1_centred = data.frame(matrix(NA, nrow = 160, ncol = 9))
+for (i in 1:9) {
+  class_1_centred[, i] = class_1[, i] - m1[i]
+}
+
+# Calculating the covariance matrix for variates in class=0
+s_0_matrix = t(class_0_centred) %*%  as.matrix(class_0_centred)
+# Calculating the covariance matrix for variates in class=1
+s_1_matrix = t(class_1_centred) %*%  as.matrix(class_1_centred)
+
+# Calculating pooled covariance matrix
+pooled_cov_matrix = (s_0_matrix + s_1_matrix) / (nrow(X) - 2)
+
+pooled_cov_matrix
+```
+
+Above is the pooled covariance matrix.
+
+Based on this data, calculate the three components of LDA for each class.
+
+  * [20 Points] After calculating these components, use your estimated values to predict the label of each observation in the training data. So this will be the in-sample fitted labels. Provide the confusion table of your results. Please be aware that some of these calculations are based on matrices, hence you must match the dimensions (construct your objects) properly, otherwise, error would occur. 
+  
+```{r}
+
+# Initializing a vector to store predicted labels
+pred_class = rep(0, nrow(X))
+
+for (i in 1:nrow(X)) {
+  ## Dimensions:    1*9               9 * 9                          9*1
+  k_0 = -0.5 * (t(X[i, ] - m0) %*% solve(pooled_cov_matrix) %*% as.matrix(X[i, ] - m0)) + log(pi_0)
+  k_1 = -0.5 * (t(X[i, ] - m1) %*% solve(pooled_cov_matrix) %*% as.matrix(X[i, ] - m1)) + log(pi_1)
+  
+  ## Assigning classes
+  if (k_0 > k_1) {
+    pred_class[i] = 0
+  }
+  else{
+    pred_class[i] = 1
+  }
+}
+```
+  
+```{r}
+# Confusion table of results
+table(y, pred_class)
+```
+   
+The above is the confusion table of predicted in-sample fitted labels using LDA calculated by estimating its components.
+
+  * [5 Points] Perform the same LDA analysis using the built in `lda` function and provide the confusion table. Are these results match?
+
+```{r}
+# Performing LDA analysis using built-in `lda` function
+library(MASS)
+dig.lda = lda(X, y)
+Y.pred = predict(dig.lda, X)
+
+# Confusion table of in-built LDA function results
+table(y, Y.pred$class)
+```
+
+The above is the confusion table of predicted in-sample fitted labels using in-built LDA function.
+
+```{r}
+# Comparing results from both LDA approaches
+
+# Confusion table of results
+table(y, pred_class)
+# Confusion table of in-built LDA function results
+table(y, Y.pred$class)
+```
+
+Yes, the results match from both approaches as evidenced by same confusion table.
+
+## Question 2: QDA and Marginal Screening
+
+From our lecture notes, we know that QDA does not work directly on the Hand Written Digit data. This is because the number of variables is larger than the number of observations for some class labels. Let's consider doing a small trick to this example, and see if that works. You should use the `zip.train` as the training data and `zip.test` as the testing data. 
+
+```{r}
+library(ElemStatLearn)
+
+# Loading train data
+X2 = zip.train[,-1]
+Y2 = zip.train[, 1]
+
+# Loading test data
+X2_test = zip.test[,-1]
+Y2_test = zip.test[, 1]
+```
+  
+Instead of using all 256 variables, we will select 40 variables, and only use them to perform the QDA. The criteria for this selection is the marginal variance, meaning that we will calculate the variance of each variable in the training data, and pick the top 40 with the largest variance. 
+
+```{r}
+# Calculating marginal variance of all 256 variables in Hand Written Digit data matrix
+variance = apply(X2, 2, var)
+vars = c(1:256)
+
+# Creating a data frame of variable and its corresponding variance
+df_var = data.frame(vars, variance)
+# Ordering the data frame with decreasing variance values
+df_var = df_var[order(df_var$variance, decreasing = TRUE), ]
+
+# Obtaining the top40 variables with largest variance
+variables_top40_var = df_var[1:40, 1]
+# Printing top 40 variables with largest variance
+variables_top40_var
+```
+
+The 40 printed variables above have the largest variance in the training data.
+
+Perform this analysis [20 Points] and report the testing data confusion table. Answer the following questions:
+
+  * [5 Points] Does the method work? Why do you think it works/or not? 
+  
+```{r}
+# Performing QDA using all 256 variables
+# dig.qda1 = qda(X2_test, Y2_test)
+```
+
+QDA method doesn't work when we include all 256 variates. Since we need to estimate the covariance matrix of each class, the number of observations for each class has to be at least larger than the number of variables(256 in this case) to make the covariance matrix invertible.
+
+```{r}
+table(Y2_test)
+```
+
+From above, we can realize that there are many classes [2   3   4   5   6   7   8   9 ] which have observations less than the number of variables (256 in out case), thus making the covariance matrix non-invertible. Hence, QDA doesn't work. 
+
+Now, trying QDA by reducing the number of variables.
+  
+```{r}
+# Creating data frame of test Hand Written Digit data matrix
+Xtest_df = as.data.frame(X2_test)
+
+# Subsetting data frame of Hand Written Digit data to contain only top 40 vars with largest variance
+Xtest_40 = Xtest_df[, c(variables_top40_var)]
+# Displaying observations of X_40 data frame
+head(Xtest_40)
+```
+  
+  
+```{r}
+# Performing QDA using only top40 variables with largest variance
+dig.qda1 = qda(Xtest_40, Y2_test)
+Y2.pred1 = predict(dig.qda1, Xtest_40)
+```
+  
+Yes, the qda method works now. This is because number of observations in each class is greater than the number of parameters(40) causing to resolve the "some group is too small for 'qda'" error we had obtained with 256 parameters. Hence, the inverse exists with the reduced number of variables(40 now).
+
+```{r}
+# Testing data confusion table
+table(Y2_test, Y2.pred1$class)
+```
+
+The testing data confusion table (with 40 variables).
+
+  * [5 Points] Decrease the number of variables that you select from 40 to just 10. What is the performance compared with the 40 variable version? Why do you think this happened? 
+```{r}
+# Obtaining the top10 variables with largest variance
+variables_top10_var = df_var[1:10, 1]
+
+# Subsetting data frame of Hand Written Digit data to contain only top 10 vars with largest variance
+Xtest_10 = Xtest_df[, c(variables_top10_var)]
+# Displaying observations of X_40 data frame
+head(Xtest_10)
+```
+
+```{r}
+# Performing QDA using only top10 variables with largest variance
+dig.qda2 = qda(Xtest_10, Y2_test)
+Y2.pred2 = predict(dig.qda2, Xtest_10)
+
+# Testing data confusion table
+table(Y2_test, Y2.pred2$class)
+```
+
+The testing data confusion table (with 10 variables).
+
+```{r}
+# Comparing performance of both QDA versions
+
+# Sum of elements along the diagonal for confusion table with 40 variables
+sum(diag(table(Y2_test, Y2.pred1$class)))
+# Sum of elements along the diagonal for confusion table with 10 variables
+sum(diag(table(Y2_test, Y2.pred2$class)))
+```
+
+The elements along the diagonals represent correct prediction by the model. Since, both QDA versions have been fitted on same number of observations, the one with confusion table of higher trace(sum of elements along the diagonal) performs better. 
+
+As 1887>1348, we can conclude that the QDA with 40 variables makes more number of correct predictions and hence performs better than the QDA with 10 variables.
+
+We attempted to select a subset of the variables by including the ones with high variance values so that it still contains most of the information in the full dataset. From the above results we can see that the performance with 40 variables is better than with 10 variables as a large proportion of the variance in the data is still explained by 40 components(with large variances) than with 10(with large variances). Hence, data with 40 components provides a better representation of full data leading to better results with QDA. 
+
